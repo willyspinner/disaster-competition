@@ -9,6 +9,7 @@ import torch.nn.functional as F
 
 def train_model(model, optimizer, loss_criterion, num_epochs, eval_every):
  # initialize running values
+    running_acc = 0.0
     running_loss = 0.0
     valid_running_loss = 0.0
     global_step = 0
@@ -20,17 +21,23 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every):
     model.train()
     for epoch in range(num_epochs):
         for (text, labels), _ in train_loader:
-            labels = F.one_hot(labels, num_classes=2).type(torch.float)
             labels = labels.to(device)
+            labels_one_hot = F.one_hot(labels, num_classes=2).to(device)
+            labels_one_hot = labels_one_hot.type(torch.float)
             text = text.type(torch.LongTensor)
             text = text.to(device)
-            model_output = model.forward(text)
+            model_output = model.forward(text).to(device)
             # model_output is (batch_size, 2)
-            loss = loss_criterion(model_output, labels)
+            loss = loss_criterion(model_output, labels_one_hot)
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            predicted_indices = torch.argmax(model_output, dim=1)
+            correct_pct =  torch.sum(predicted_indices == labels) / len(model_output)
+            running_acc += correct_pct
+
 
             # update running values
             running_loss += loss.item()
@@ -56,6 +63,7 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every):
 
                 # evaluation
                 average_train_loss = running_loss / eval_every
+                average_train_acc = running_acc / eval_every
                 #average_valid_loss = valid_running_loss / len(valid_loader)
                 train_loss_list.append(average_train_loss)
                 #valid_loss_list.append(average_valid_loss)
@@ -63,12 +71,13 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every):
 
                 # resetting running values
                 running_loss = 0.0
+                running_acc = 0.0
                 #valid_running_loss = 0.0
                 model.train()
 
-                print('Epoch [{}/{}], Step [{}/{}], Train Loss: {:.4f}'
+                print('Epoch [{}/{}], Step [{}/{}], Train Loss: {:.4f}, Train acc: {:.4f}'
                       .format(epoch+1, num_epochs, global_step, num_epochs*len(train_loader),
-                              average_train_loss))
+                              average_train_loss, average_train_acc))
                 # print progress
                 """
                 print('Epoch [{}/{}], Step [{}/{}], Train Loss: {:.4f}, Valid Loss: {:.4f}'
@@ -86,13 +95,15 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every):
 
 if __name__ == '__main__':
     # Configurations
-    device='cpu'
+    device= 'cuda:0' if torch.cuda.is_available() else 'cpu'
     batch_size = 16
-    num_epochs = 5
+    num_epochs = 100
+    lr=0.00001
     eval_every = 1
 
-    model = Model()
-    optimizer = Adam(model.parameters()) # vanilla Adam
+    model = Model(device=device)
+    model_params = model.parameters()
+    optimizer = Adam(model_params, lr=lr) # vanilla Adam
     loss_criterion = BCELoss()
     train_loader, test_loader = get_data_iterators(device, batch_size)
     train_model(

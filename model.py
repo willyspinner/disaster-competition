@@ -4,11 +4,14 @@ import torch.nn as nn
 model_tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
 
 class Model(nn.Module):
-    def __init__(self):
+    def __init__(self, device):
         super(Model, self).__init__()
+        self.device = device
         self.tokenizer = model_tokenizer
-        self.roberta_base = RobertaForSequenceClassification.from_pretrained('roberta-base')
-        self.softmax = nn.Softmax()
+        self.roberta_base = RobertaForSequenceClassification.from_pretrained('roberta-base').to(device)
+        self.softmax = nn.Softmax().to(device)
+        print("TYP", type(self.roberta_base.parameters()))
+        #self.register_parameter(name='roberta-base', param=self.roberta_base.parameters())
 
     def predict_text(self, text):
         inputs = self.tokenizer(text, return_tensors="pt")
@@ -20,5 +23,5 @@ class Model(nn.Module):
 
     def forward(self, x):
         # returns a SequenceClassifierOutput, so get logits.
-        logits = self.roberta_base.forward(x).logits
+        logits = self.roberta_base.forward(x).logits.to(self.device)
         return self.softmax(logits)
