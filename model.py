@@ -10,8 +10,6 @@ class Model(nn.Module):
         self.tokenizer = model_tokenizer
         self.roberta_base = RobertaForSequenceClassification.from_pretrained('roberta-base').to(device)
         self.softmax = nn.Softmax().to(device)
-        print("TYP", type(self.roberta_base.parameters()))
-        #self.register_parameter(name='roberta-base', param=self.roberta_base.parameters())
 
     def predict_text(self, text):
         inputs = self.tokenizer(text, return_tensors="pt")
@@ -21,7 +19,7 @@ class Model(nn.Module):
         print(outputs)
 
 
-    def forward(self, x):
+    def forward(self, x, **kwargs):
         # returns a SequenceClassifierOutput, so get logits.
-        logits = self.roberta_base.forward(x).logits.to(self.device)
+        logits = self.roberta_base.forward(x, **kwargs).logits.to(self.device)
         return self.softmax(logits)
