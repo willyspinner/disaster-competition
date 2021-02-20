@@ -16,7 +16,7 @@ train_fields = [('id', None), ('keyword', None), ('location', None), ('text', te
 
 test_fields = [('id', None), ('keyword', None), ('location', None), ('text', text_field), ('target', label_field)]
 # TabularDataset
-train_dataset = TabularDataset(path='train-mini.csv', format='CSV', fields=train_fields, skip_header=True)
+train_dataset = TabularDataset(path='train.csv', format='CSV', fields=train_fields, skip_header=True)
 
 # Note that test dataset doesnt have any target fields. 
 test_dataset = TabularDataset(path='test.csv', format='CSV', fields=test_fields, skip_header=True)
@@ -27,8 +27,10 @@ train, test = TabularDataset.splits(path='.', train='train.csv',
 """
 
 # Iterators
-def get_data_iterators(device, batch_size):
+def get_dataloaders(device, batch_size):
     train_iter = BucketIterator(train_dataset, batch_size=batch_size, sort_key=lambda x: len(x.text),
                                                             device=device, train=True, sort=True, shuffle=True, sort_within_batch=True)
     test_iter = Iterator(test_dataset, batch_size=batch_size, device=device, train=False, shuffle=False, sort=False)
     return train_iter, test_iter
+
+# 
