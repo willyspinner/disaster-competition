@@ -2,3 +2,6 @@ bin/
 __pycache__/
 lib/
 pyvenv.cfg
+final-results.csv
+train-mini.csv
+test-sample.csv

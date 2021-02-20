@@ -3,6 +3,7 @@ import csv
 from torch.utils.data import random_split, DataLoader, Dataset
 from model import model_tokenizer
 
+
 class DisasterDataset(Dataset):
     def __init__(self, csvfile, max_len=128):
         self.rows = [] # tuple of (text, target)
@@ -40,8 +41,8 @@ def collate_fn(dataset_items):
 
 
 
-def get_dataloaders(device, batch_size, split_lengths=[80, 10, 10]):
-    dataset = DisasterDataset('./train.csv')
+def get_dataloaders(csvpath, device, batch_size, split_lengths=[80, 10, 10]):
+    dataset = DisasterDataset(csvpath)
     if len(split_lengths) != 3:
         raise Error("Split lengths must be of size 3")
     scaled_lengths = [int(len(dataset) * (x / sum(split_lengths))) for x in split_lengths ]
