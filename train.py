@@ -1,4 +1,4 @@
-from model import Model
+from model import BaseModel
 import torch
 from tqdm import tqdm
 from torch.nn import BCELoss
@@ -123,9 +123,11 @@ def evaluate_test(model, test_loader, device):
     test_acc = correct_samples / total_samples_tested
     test_loss = test_loss_sum / total_batches
     print("TEST RESULTS: test_acc: {}, test_loss: {}".format(test_acc, test_loss))
+    return test_acc, test_loss 
 
 
 def make_prediction_submission(model, device):
+    model.eval()
     with open('./test.csv') as f:
         # load all text in memory, makes it easier.
         reader = csv.DictReader(f)
@@ -157,7 +159,7 @@ if __name__ == '__main__':
     csvpath = "./train.csv"
 
 
-    model = Model(device=device)
+    model = BaseModel(device=device)
     model_params = model.parameters()
     optimizer = Adam(model_params, lr=lr) # vanilla Adam
     loss_criterion = BCELoss()
@@ -173,5 +175,15 @@ if __name__ == '__main__':
         dev_loader=dev_loader,
         device=device
     )
-    evaluate_test(model, test_loader, device)
+    test_acc, test_loss = evaluate_test(model, test_loader, device)
+    model_filename = '{}_loss_{:.5f}_acc_{:.5f}.pt'.format(model.name, test_loss, test_acc)
+    torch.save(model.state_dict(), model_filename)
+    """
+    To load the model, simply
+    model = BaseModel(device='cudo')
+    model.load_state_dict(torch.load(model_filename))
+    model.eval()
+    """
+    print("Model saved at", model_filename)
+
     make_prediction_submission(model, device)

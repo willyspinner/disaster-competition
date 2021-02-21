@@ -3,9 +3,10 @@ import torch.nn as nn
 
 model_tokenizer = RobertaTokenizer.from_pretrained('roberta-base')
 
-class Model(nn.Module):
+class BaseModel(nn.Module):
     def __init__(self, device='cpu'):
-        super(Model, self).__init__()
+        super(BaseModel, self).__init__()
+        self.name="base-model"
         self.device = device
         self.tokenizer = model_tokenizer
         self.roberta_base = RobertaModel.from_pretrained('roberta-base').to(device)
@@ -13,10 +14,6 @@ class Model(nn.Module):
         self.dp1 = nn.Dropout(p=0.15, inplace=False).to(device)
         self.fc2 = nn.Linear(in_features=768, out_features=2, bias=True).to(device)
         self.softmax = nn.Softmax(dim=-1).to(device)
-
-    def load(self, model_path):
-        # TODO
-        pass
 
     def predict(self, text):
         x= self.tokenizer(text, return_tensors="pt", padding=True)
@@ -36,11 +33,8 @@ class Model(nn.Module):
         # so we take the 0th timestep features and put it to a series of fcs.
         # this should be ok, since bert is bidirectional.
         output = output[:, 0, :]
-        # TODO: is 128 a good padding?
         x = self.fc1(output).to(self.device)
         x = self.dp1(x).to(self.device)
         x = self.fc2(x).to(self.device)
         x = self.softmax(x).to(self.device)
-
-        #TODO: perhaps add some layers here? Customize the layers?
         return x
