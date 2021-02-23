@@ -1,29 +1,11 @@
-from model import BaseModel
+from model import RBTModel
 import torch
 from tqdm import tqdm
 from torch.nn import BCELoss
 from torch.optim import Adam
 from data import get_dataloaders
 import csv
-import torch.nn.functional as F
-
-# adapted from existing code
-
-
-def generate_losses(model, data_batch, device, loss_criterion):
-    labels = data_batch['label']
-    encoded_texts = data_batch['encoded_text']
-
-    input_ids = encoded_texts['input_ids'].to(device)
-    attn_mask = encoded_texts['attention_mask'].to(device)
-
-    labels = labels.to(device)
-    labels_one_hot = F.one_hot(labels, num_classes=2).type(torch.float).to(device)
-
-    model_output = model.forward(input_ids, attention_mask=attn_mask).to(device)
-    loss = loss_criterion(model_output, labels_one_hot)
-
-    return loss, model_output
+from evaluation import evaluate_test, make_prediction_submission
 
 def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_loss_every, train_loader, dev_loader, device):
  # initialize running values
@@ -42,7 +24,8 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_
             for train_batch in train_loader:
                 model.train()
                 labels = train_batch['label'].to(device)
-                loss, model_output = generate_losses(model, train_batch, device, loss_criterion)
+                encoded_inputs = train_batch['encoded_text']
+                loss, model_output = model.generate_losses(encoded_inputs, labels, loss_criterion)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
@@ -63,7 +46,8 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_
                         # validation loop
                         for dev_batch in dev_loader:
                             dev_labels = dev_batch['label'].to(device)
-                            val_loss, model_output = generate_losses(model, dev_batch, device, loss_criterion)
+                            dev_inputs = dev_batch['encoded_text']
+                            val_loss, model_output = model.generate_losses(dev_inputs, dev_labels, loss_criterion)
                             predicted_indices = torch.argmax(model_output, dim=1)
 
                             val_correct_pct =  torch.sum(predicted_indices == dev_labels) / len(model_output)
@@ -100,51 +84,6 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_
 
                 pbar.update(1)
 
-def evaluate_test(model, test_loader, device):
-    model.eval()
-    total_samples_tested = 0
-    total_batches = 0
-    correct_samples = 0
-    test_loss_sum = 0
-
-    with torch.no_grad():
-        # validation loop
-        for test_batch in test_loader:
-            test_labels = test_batch['label'].to(device)
-            test_loss, model_output = generate_losses(model, test_batch, device, loss_criterion)
-            predicted_indices = torch.argmax(model_output, dim=1)
-
-            correct_samples +=  torch.sum(predicted_indices == test_labels)
-            total_samples_tested += len(model_output)
-
-            total_batches += 1
-            test_loss_sum += test_loss.item()
-
-    test_acc = correct_samples / total_samples_tested
-    test_loss = test_loss_sum / total_batches
-    print("TEST RESULTS: test_acc: {}, test_loss: {}".format(test_acc, test_loss))
-    return test_acc, test_loss 
-
-
-def make_prediction_submission(model, device):
-    model.eval()
-    with open('./test.csv') as f:
-        # load all text in memory, makes it easier.
-        reader = csv.DictReader(f)
-        test_rows = [(row['id'], row['text']) for row in reader]
-    results = []
-    for (id, text) in tqdm(test_rows):
-        prediction = model.predict(text).item()
-        results.append((id, prediction))
-
-    # generate submission file
-    with open('final-results.csv', 'w+') as csvfile:
-        writer = csv.DictWriter(csvfile, fieldnames=['id', 'target'])
-        writer.writeheader()
-        for (id, predicted) in results:
-            writer.writerow({ 'id': id, 'target': predicted })
-
-    print("Final submission csv written in final-results.csv")
 
 
 if __name__ == '__main__':
@@ -152,18 +91,19 @@ if __name__ == '__main__':
     device= 'cuda:0' if torch.cuda.is_available() else 'cpu'
     batch_size = 16
     num_epochs = 5
+    use_preprocess = True
     lr=0.00001
     eval_every = 100
     print_loss_every = 5
     split=[80, 5, 15] # train, dev, test percentages
-    csvpath = "./train.csv"
+    csvpath = "./train-mini.csv"
 
 
-    model = BaseModel(device=device)
+    model = RBTModel(device=device)
     model_params = model.parameters()
     optimizer = Adam(model_params, lr=lr) # vanilla Adam
     loss_criterion = BCELoss()
-    train_loader, dev_loader, test_loader = get_dataloaders(csvpath, device, batch_size)
+    train_loader, dev_loader, test_loader = get_dataloaders(csvpath, device, batch_size, split=split, preprocess=use_preprocess)
     train_model(
         model,
         optimizer=optimizer,
@@ -175,12 +115,12 @@ if __name__ == '__main__':
         dev_loader=dev_loader,
         device=device
     )
-    test_acc, test_loss = evaluate_test(model, test_loader, device)
+    test_acc, test_loss = evaluate_test(model, test_loader, loss_criterion, device)
     model_filename = '{}_loss_{:.5f}_acc_{:.5f}.pt'.format(model.name, test_loss, test_acc)
     torch.save(model.state_dict(), model_filename)
     """
     To load the model, simply
-    model = BaseModel(device='cudo')
+    model = RBTModel(device='cudo')
     model.load_state_dict(torch.load(model_filename))
     model.eval()
     """
