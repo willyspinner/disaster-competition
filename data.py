@@ -27,7 +27,7 @@ class DisasterDataset(Dataset):
         item = {
             'label': self.rows[idx][1],
             # these need to have the same dims
-            'encoded_text': model_tokenizer(text, return_tensors='pt',
+            'input': model_tokenizer(text, return_tensors='pt',
                                             padding='max_length', max_length=self.max_len)
         }
         return item
@@ -39,9 +39,9 @@ def collate_fn(dataset_items):
     # collate return (batch_size, 1, MAX_LEN)
 
     labels = torch.Tensor([d['label'] for d in dataset_items]).type(torch.LongTensor)
-    attns = torch.stack([d['encoded_text']['attention_mask'].flatten() for d in dataset_items])
-    input_ids = torch.stack([d['encoded_text']['input_ids'].flatten() for d in dataset_items])
-    return { "label": labels, "encoded_text": { "attention_mask": attns, "input_ids": input_ids } }
+    attns = torch.stack([d['input']['attention_mask'].flatten() for d in dataset_items])
+    input_ids = torch.stack([d['input']['input_ids'].flatten() for d in dataset_items])
+    return { "label": labels, "input": { "attention_mask": attns, "input_ids": input_ids } }
 
 
 def get_dataloaders(csvpath, device, batch_size, split=[80, 10, 10], preprocess=True):
