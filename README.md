@@ -4,7 +4,7 @@ Right now, a fine-tuned ROBERTa scores 82.89% accuracy in just 5 epochs. Can we 
 
 - [ ] See the most commonly used disaster words (not counting stopwords) and non-disaster.
 - [ ] Do the BoW / TF-IDF appraoch where we would select the most occuring disaster-words and weigh this more in attention layer?
-- [ ] ROBERTa method (done) - 82.89% acc without preprocessing.
+- [x] ROBERTa method (done) - 82.89% acc with reduced LR.
 - [x] preprocessing
 - [ ] ensemble method - SEE Why this works 
 

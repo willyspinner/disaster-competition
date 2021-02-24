@@ -26,6 +26,7 @@ class DisasterDataset(Dataset):
             text = preprocess_text(text)
         item = {
             'label': self.rows[idx][1],
+            'text': text,
             # these need to have the same dims
             'input': model_tokenizer(text, return_tensors='pt',
                                             padding='max_length', max_length=self.max_len)
@@ -39,12 +40,13 @@ def collate_fn(dataset_items):
     # collate return (batch_size, 1, MAX_LEN)
 
     labels = torch.Tensor([d['label'] for d in dataset_items]).type(torch.LongTensor)
+    texts = [d['text'] for d in dataset_items]
     attns = torch.stack([d['input']['attention_mask'].flatten() for d in dataset_items])
     input_ids = torch.stack([d['input']['input_ids'].flatten() for d in dataset_items])
-    return { "label": labels, "input": { "attention_mask": attns, "input_ids": input_ids } }
+    return { "label": labels, "input": { "attention_mask": attns, "input_ids": input_ids }, 'text': texts }
 
 
-def get_dataloaders(csvpath, device, batch_size, split=[80, 10, 10], preprocess=True):
+def get_datasets(csvpath, split=[80, 10, 10], preprocess=True):
     dataset = DisasterDataset(csvpath, preprocess=preprocess)
     if len(split) != 3:
         raise Error("Split lengths must be of size 3")
@@ -52,6 +54,10 @@ def get_dataloaders(csvpath, device, batch_size, split=[80, 10, 10], preprocess=
     if sum(scaled_lengths) < len(dataset):
         scaled_lengths[0] += len(dataset) - sum(scaled_lengths)
     train, dev, test = random_split(dataset, lengths=scaled_lengths, generator=torch.Generator().manual_seed(42))
+    return train, dev, test
+
+def get_dataloaders(csvpath, batch_size, split=[80, 10, 10], preprocess=True):
+    train, dev, test = get_datasets(csvpath, split, preprocess)
     train_loader = DataLoader(train, batch_size=batch_size, collate_fn=collate_fn)
     test_loader = DataLoader(test, batch_size=batch_size, collate_fn=collate_fn)
     dev_loader = DataLoader(dev, batch_size=batch_size, collate_fn=collate_fn)

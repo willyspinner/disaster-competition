@@ -55,7 +55,7 @@ def remove_multiple_space(text):
     return multispace_re.sub(' ', text)
 
 
-def preprocess_text(text):
+def preprocess_fn(text):
     text = text.lower()
     text = remove_URL(text)
     text = remove_HTML(text)
@@ -67,4 +67,8 @@ def preprocess_text(text):
     return text
 
 
-
+def preprocess_text(text):
+    if(isinstance(text, list)):
+        return [preprocess_fn(t) for t in text]
+    else:
+        return preprocess_fn(text)

@@ -8,6 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from data import get_dataloaders
 import csv
 from evaluation import evaluate_test, make_prediction_submission
+from os import path
 
 
 def validate_model(model, dev_loader):
@@ -18,12 +19,13 @@ def validate_model(model, dev_loader):
     model.eval()
     val_running_loss = 0.0
     running_val_acc = 0.0
+    device = model.device
     with torch.no_grad():
         # validation loop
         for dev_batch in dev_loader:
             dev_labels = dev_batch['label'].to(device)
             dev_inputs = dev_batch['input']
-            val_loss, model_output = model.generate_losses(dev_inputs, dev_labels, loss_criterion)
+            val_loss, model_output = model.generate_losses(dev_labels, loss_criterion, encoded_inputs=dev_inputs)
             predicted_indices = torch.argmax(model_output, dim=1)
 
             val_correct_pct =  torch.sum(predicted_indices == dev_labels) / len(model_output)
@@ -35,8 +37,8 @@ def validate_model(model, dev_loader):
             # resetting running values
     return average_val_acc, average_val_loss
 
-def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_loss_every, train_loader, dev_loader, device):
- # initialize running values
+def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_loss_every, train_loader, dev_loader):
+    # initialize running values
     running_acc = 0.0
     running_loss = 0.0
     val_running_loss = 0.0
@@ -44,6 +46,7 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_
     global_step = 0
     train_loss_list = []
     val_loss_list = []
+    device = model.device
 
     # training loop
     model.train()
@@ -55,7 +58,7 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_
                 model.train()
                 labels = train_batch['label'].to(device)
                 encoded_inputs = train_batch['input']
-                loss, model_output = model.generate_losses(encoded_inputs, labels, loss_criterion)
+                loss, model_output = model.generate_losses(labels, loss_criterion, encoded_inputs=encoded_inputs)
                 optimizer.zero_grad()
                 loss.backward()
 
@@ -95,8 +98,8 @@ def train_model(model, optimizer, loss_criterion, num_epochs, eval_every, print_
                     running_loss = 0.0
                     running_acc = 0.0
                 pbar.update(1)
-            # end of epoch.
 
+            # end of epoch.
             average_val_acc, average_val_loss = validate_model(model, dev_loader)
             print('Epoch [{}/{}], Step [{}/{}], END OF EPOCH. Valid Loss: {:.4f}, Valid acc: {:.4f}'
                   .format(epoch+1, num_epochs, global_step, num_epochs*len(train_loader),
@@ -110,7 +113,6 @@ if __name__ == '__main__':
     device= 'cuda:0' if torch.cuda.is_available() else 'cpu'
     batch_size = 16
     num_epochs = 6
-    use_preprocess = True
     lr=1e-5
     eval_every = 100
     print_loss_every = 5
@@ -122,7 +124,7 @@ if __name__ == '__main__':
     model_params = model.parameters()
     optimizer = Adam(model_params, lr=lr) # vanilla Adam
     loss_criterion = BCELoss()
-    train_loader, dev_loader, test_loader = get_dataloaders(csvpath, device, batch_size, split=split, preprocess=use_preprocess)
+    train_loader, dev_loader, test_loader = get_dataloaders(csvpath, batch_size, split=split)
     train_model(
         model,
         optimizer=optimizer,
@@ -134,15 +136,17 @@ if __name__ == '__main__':
         dev_loader=dev_loader,
         device=device
     )
-    test_loss, test_metrics = evaluate_test(model, test_loader, loss_criterion, device)
+    test_loss, test_metrics = evaluate_test(model, test_loader, loss_criterion)
+
     model_filename = '{}_loss_{:.5f}_acc_{:.5f}.pt'.format(model.name, test_loss, test_metrics['acc'])
-    torch.save(model.state_dict(), model_filename)
+    model_path = path.join('saved_models', model_filename)
+    torch.save(model.state_dict(), model_path)
     """
     To load the model, simply
     model = RBTModel(device='cuda')
     model.load_state_dict(torch.load(model_filename))
     model.eval()
     """
-    print("Model saved at", model_filename)
+    print("Model saved at", model_path)
 
-    make_prediction_submission(model, device)
+    make_prediction_submission(model )
